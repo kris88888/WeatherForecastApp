@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">WeatherForecast</string>
+    <string name="api_key">9553b7c6ed3168be95d5e4fe68dc016b</string>
+    <string name="base_url">https://api.openweathermap.org/</string>
+</resources>
