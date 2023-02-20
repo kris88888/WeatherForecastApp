@@ -6,7 +6,10 @@ data class City(
     val id: Int,
     val name: String,
     val population: Int,
-    val sunrise: Int,
-    val sunset: Int,
     val timezone: Int
+)
+
+data class Coord(
+    val lat: Double,
+    val lon: Double
 )

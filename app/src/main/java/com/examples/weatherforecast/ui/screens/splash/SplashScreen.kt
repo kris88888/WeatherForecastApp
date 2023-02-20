@@ -38,7 +38,7 @@ fun SplashScreen(navController: NavController? = null) {
         Animatable(initialValue = 0f)
     }
 
-    LaunchedEffect(key1 = true, block = {
+    LaunchedEffect(key1 = Unit, block = {
             scale.animateTo(
                 targetValue = 0.9f,
                 animationSpec = tween(800, easing = {
