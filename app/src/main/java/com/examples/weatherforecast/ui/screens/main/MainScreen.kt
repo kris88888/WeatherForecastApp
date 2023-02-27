@@ -4,67 +4,199 @@ import android.annotation.SuppressLint
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.produceState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberImagePainter
-import com.examples.weatherforecast.MainViewModel
+import com.examples.weatherforecast.ui.screens.main.MainViewModel
 import com.examples.weatherforecast.R
-import com.examples.weatherforecast.data.model.Weather
 import com.examples.weatherforecast.data.model.WeatherInformation
 import com.examples.weatherforecast.data.model.WeatherResponse
+import com.examples.weatherforecast.navigation.Routes
 import com.examples.weatherforecast.network.ApiResult
+import com.examples.weatherforecast.ui.screens.favorite.FavoriteScreenViewModel
+import com.examples.weatherforecast.ui.screens.settings.SettingsViewModel
 import com.examples.weatherforecast.ui.theme.AppTheme
 import com.examples.weatherforecast.ui.widgets.CommonAppBar
+import com.examples.weatherforecast.ui.widgets.ShowToast
 import com.examples.weatherforecast.utils.*
 
 @Composable
-fun MainScreen(navController: NavController, mainViewModel: MainViewModel) {
+fun MainScreen(
+    navController: NavController,
+    mainViewModel: MainViewModel,
+    favoriteViewModel: FavoriteScreenViewModel,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    city: String?
+) {
+
+    city?.let {
+        mainViewModel.city = it
+    }
+    val unitsFromDb = settingsViewModel.metricList.collectAsState().value
+    var unit by remember {
+        mutableStateOf("imperial")
+    }
+
+    val showDialog = rememberSaveable {
+        mutableStateOf(false)
+    }
+    if (showDialog.value) {
+        SettingsDropDown(showDialog, navController)
+    }
+    // units can be either imperial or metric.
+    if(!unitsFromDb.isNullOrEmpty()) {
+        unit = unitsFromDb[0].unit
+    }
+
     val weatherData = produceState<ApiResult<WeatherResponse, Boolean, Exception>>(
         initialValue = ApiResult(loading = true)
     ) {
-        value = mainViewModel.getWeatherData()
+        value = mainViewModel.getWeatherData(unit)
     }.value
     if (weatherData.loading) {
         CircularProgressIndicator()
     } else if (weatherData.data != null) {
         Log.d("KRIS", "$weatherData.data")
-        MainScaffold(weatherData = weatherData.data!!, navController)
+        MainScaffold(
+            weatherData = weatherData.data!!,
+            navController,
+            mainViewModel.city,
+            favoriteViewModel,
+            showDialog
+        )
     }
+}
+
+@Composable
+fun SettingsDropDown(expanded: MutableState<Boolean>, navController: NavController) {
+    val menuItems = stringArrayResource(id = R.array.menu_items)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentSize(Alignment.TopEnd)
+            .absolutePadding(top = 45.dp, right = 20.dp)
+    ) {
+        DropdownMenu(
+            expanded = expanded.value, onDismissRequest = {
+                expanded.value = false
+            }, modifier = Modifier
+                .wrapContentWidth()
+                .background(Color.White)
+        ) {
+            menuItems.forEachIndexed { index, text ->
+
+                val clickListener = {
+                    expanded.value = false
+                    printMe(" $text clicked")
+
+                }
+                DropdownMenuItem(onClick = clickListener) {
+                    val img = when (text) {
+                        stringResource(id = R.string.about) -> Icons.Default.Info
+                        stringResource(id = R.string.favorite) -> Icons.Default.Favorite
+                        stringResource(id = R.string.settings) -> Icons.Default.Settings
+                        else -> Icons.Default.Warning
+                    }
+
+                    val destination = when (text) {
+                        stringResource(id = R.string.about) -> Routes.ABOUT_SCREEN
+                        stringResource(id = R.string.favorite) -> Routes.FAVORITE_SCREEN
+                        stringResource(id = R.string.settings) -> Routes.SETTINGS_SCREEN
+                        else -> Routes.ABOUT_SCREEN
+                    }
+                    Icon(
+                        imageVector = img,
+                        contentDescription = null,
+                        tint = Color.LightGray,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                    Text(
+                        text = text,
+                        style = TextStyle(color = AppTheme.colors.menuItemColor),
+                        modifier = Modifier.clickable {
+                            clickListener()
+                            navController.navigate(destination)
+                        },
+                        fontWeight = FontWeight.W400
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun printMe(message: String) {
+    Log.d("KRIS", message)
 }
 
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
 @Composable
-fun MainScaffold(weatherData: WeatherResponse, navController: NavController) {
+fun MainScaffold(
+    weatherData: WeatherResponse,
+    navController: NavController,
+    city: String,
+    favoriteViewModel: FavoriteScreenViewModel,
+    showDialog: MutableState<Boolean>
+) {
+    val show = remember {
+        mutableStateOf(false)
+    }
+
+    val context = LocalContext.current
+
     Scaffold(topBar = {
         CommonAppBar(
             title = "${weatherData.city.name}, ${weatherData.city.country}",
             navController = navController,
-            onButtonClicked = {
-                navController.popBackStack()
+            elevation = 5.dp,
+            showFavoriteIcon = favoriteViewModel.isFavorite(city),
+            onSearchClicked = {
+                navController.navigate("${Routes.SEARCH_SCREEN}/$city")
             },
-            elevation = 5.dp
+            onMenuItemClicked = {
+                showDialog.value = !showDialog.value
+            },
+            onFavoriteClicked = {
+                favoriteViewModel.addFavorite(weatherData.city.name, weatherData.city.country)
+                show.value = true
+            }
         )
+        if(show.value){
+            ShowToast(context = context, message = "Favorite Saved", show = show)
+        }
     }) {
+
         MainContent(weatherData)
+
     }
 }
 
@@ -96,14 +228,12 @@ fun MainContent(weatherData: WeatherResponse) {
             ) {
 
                 val url = Constants.GENERIC_IMAGE_URL.format(currentDayWeather.weather.get(0).icon)
-                Log.d("KRIS", "Image url $url")
                 WeatherStateIcon(url)
                 Text(
                     text = formatDecimals(currentDayWeather.temp.day) + Constants.DEGREE_SYMBOL,
                     style = AppTheme.typography.h4
                 )
                 Text(text = currentDayWeather.weather[0].main, fontStyle = FontStyle.Italic)
-
             }
         }
         HumidityWindRow(
@@ -171,7 +301,10 @@ fun WeekdayDayWeather(item: WeatherInformation) {
             Text(text = date, modifier = Modifier.padding(AppTheme.dimens.dimen2))
             WeatherStateIcon(url = imageUrl)
             CircularDescription(text = item.weather[0].description)
-            Row(modifier = Modifier.wrapContentWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            Row(
+                modifier = Modifier.wrapContentWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
                 Text(text = buildAnnotatedString {
                     withStyle(
                         style = SpanStyle(

@@ -1,3 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="menu_items">
+        <item>@string/about</item>
+        <item>@string/favorite</item>
+        <item>@string/settings</item>
+    </string-array>
+    <string-array name="measurement_list">
+        <item>@string/fahrenheit</item>
+        <item>@string/Celsius</item>
+    </string-array>
 </resources>
